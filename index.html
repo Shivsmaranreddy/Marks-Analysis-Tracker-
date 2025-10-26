@@ -151,172 +151,142 @@ const studentNames = {
     130413: "VAISHVIK SUBBANI",
 };
 
-let s=[];
-function calc(){
-    s = [];
 
-    // collect admn numbers from every dataset in d
-    let admnSet = new Set();
-    Object.values(d).forEach(obj => {
-        if (obj && typeof obj === "object") Object.keys(obj).forEach(k => admnSet.add(k));
-    });
+        let s = [];
 
-    // compute maxima per component to derive maxTotal
-    const inmtParts = ["inmt1","inmt2","inmt3","inmt4","inmt5","inmt6","inmt7"];
-    let maxInmtPerPart = {};
-    inmtParts.forEach(part => {
-        maxInmtPerPart[part] = 0;
-        if (d[part]) {
-            Object.values(d[part]).forEach(v => {
-                let num = Number(v) || 0;
-                if (num > maxInmtPerPart[part]) maxInmtPerPart[part] = num;
+        function calc() {
+            s = [];
+
+            const inmtParts = ["inmt1","inmt2","inmt3","inmt4","inmt5","inmt6","inmt7"];
+            let admnSet = new Set();
+
+            Object.values(d).forEach(obj => {
+                if (obj && typeof obj === "object") Object.keys(obj).forEach(k => admnSet.add(k));
             });
+
+            // compute maxima
+            let maxInmtPerPart = {};
+            inmtParts.forEach(part => {
+                maxInmtPerPart[part] = Math.max(...Object.values(d[part] || {}).map(Number), 0);
+            });
+            const maxInmt = inmtParts.reduce((a,p)=>a+(maxInmtPerPart[p]||0),0);
+            const maxJeeM = Math.max(...Object.values(d.jeemain||{}).map(Number), 0);
+            const maxJeeA = Math.max(...Object.values(d.jeeadv||{}).map(Number), 0);
+            const maxEap  = Math.max(...Object.values(d.eapcet||{}).map(Number), 0);
+
+            let maxPt = 0;
+            const allPtAdms = new Set([...Object.keys(d.pt1||{}), ...Object.keys(d.pt2||{})]);
+            allPtAdms.forEach(ad => {
+                const v1 = Number(d.pt1?.[ad]||0);
+                const v2 = Number(d.pt2?.[ad]||0);
+                maxPt = Math.max(maxPt, v1+v2);
+            });
+
+            const maxTotal = maxInmt + maxJeeM + maxJeeA + maxEap + maxPt;
+
+            admnSet.forEach(admn => {
+                let inmtTotal = inmtParts.reduce((sum,p)=>sum+(Number(d[p]?.[admn])||0),0);
+                const jeeM = Number(d.jeemain?.[admn])||0;
+                const jeeA = Number(d.jeeadv?.[admn])||0;
+                const eap  = Number(d.eapcet?.[admn])||0;
+                const pt1  = Number(d.pt1?.[admn])||0;
+                const pt2  = Number(d.pt2?.[admn])||0;
+                const ptTotal = pt1 + pt2;
+
+                const tot = inmtTotal + jeeM + jeeA + eap + ptTotal;
+                const pct = maxTotal ? (tot / maxTotal * 100).toFixed(2) : 0;
+
+                s.push({
+                    a: admn,
+                    name: studentNames[admn] || "N/A",
+                    inmt: inmtTotal,
+                    jee_m: jeeM,
+                    jee_a: jeeA,
+                    eap: eap,
+                    pt: ptTotal,
+                    tot: tot,
+                    pct: pct,
+                    sec: sec[admn] || "N/A",
+                    __maxTotal: maxTotal
+                });
+            });
+
+            s.sort((x,y)=>parseFloat(y.pct)-parseFloat(x.pct));
+            render();
         }
-    });
-    let maxInmt = inmtParts.reduce((acc, p) => acc + (maxInmtPerPart[p] || 0), 0);
 
-    // maxima for other whole-test components
-    const maxJeeM = d.jeemain ? Math.max(0, ...Object.values(d.jeemain).map(v => Number(v)||0)) : 0;
-    const maxJeeA = d.jeeadv ? Math.max(0, ...Object.values(d.jeeadv).map(v => Number(v)||0)) : 0;
-    const maxEap  = d.eapcet ? Math.max(0, ...Object.values(d.eapcet).map(v => Number(v)||0)) : 0;
-    // PT total = pt1 + pt2. compute max PT by computing max(pt1+pt2) across students
-    let maxPt = 0;
-    const allPtAdms = new Set();
-    if (d.pt1) Object.keys(d.pt1).forEach(k=>allPtAdms.add(k));
-    if (d.pt2) Object.keys(d.pt2).forEach(k=>allPtAdms.add(k));
-    allPtAdms.forEach(ad => {
-        const v1 = d.pt1 && d.pt1[ad] ? Number(d.pt1[ad]) : 0;
-        const v2 = d.pt2 && d.pt2[ad] ? Number(d.pt2[ad]) : 0;
-        if (v1+v2 > maxPt) maxPt = v1+v2;
-    });
+        function render() {
+            const q = document.getElementById("search").value.toLowerCase();
+            const filtered = s.filter(it => String(it.a).includes(q) || it.name.toLowerCase().includes(q));
+            const tbody = document.getElementById("tbody");
+            tbody.innerHTML = "";
 
-    const maxTotal = maxInmt + maxJeeM + maxJeeA + maxEap + maxPt;
+            if (filtered.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='13' style='text-align:center;color:#999;'>No records found</td></tr>";
+            }
 
-    // build student objects
-    admnSet.forEach(admn => {
-        // INMT parts
-        let inmtTotal = 0;
-        inmtParts.forEach(part => {
-            const v = d[part] && d[part][admn] ? Number(d[part][admn]) : 0;
-            inmtTotal += v;
-        });
+            const globalMax = filtered.length > 0 ? Number(filtered[0].__maxTotal || 0) : 0;
 
-        const jeeM = d.jeemain && d.jeemain[admn] ? Number(d.jeemain[admn]) : 0;
-        const jeeA = d.jeeadv  && d.jeeadv[admn] ? Number(d.jeeadv[admn]) : 0;
-        const eap  = d.eapcet  && d.eapcet[admn] ? Number(d.eapcet[admn]) : 0;
-        const pt1  = d.pt1 && d.pt1[admn] ? Number(d.pt1[admn]) : 0;
-        const pt2  = d.pt2 && d.pt2[admn] ? Number(d.pt2[admn]) : 0;
-        const ptTotal = pt1 + pt2;
+            filtered.forEach((stu, idx) => {
+                const percentile = filtered.length > 1 ? ((filtered.length - 1 - idx)/(filtered.length - 1)*100).toFixed(2) : "0.00";
+                const lost = globalMax ? (globalMax - stu.tot).toFixed(2) : 0;
 
-        const tot = inmtTotal + jeeM + jeeA + eap + ptTotal;
+                const tr = document.createElement("tr");
+                if (idx < 3 && stu.tot > 0) tr.classList.add(`rank-${idx+1}`);
+                tr.innerHTML = `
+                    <td>${idx+1}</td>
+                    <td>${stu.a}</td>
+                    <td>${stu.name}</td>
+                    <td>${stu.inmt}</td>
+                    <td>${stu.jee_m}</td>
+                    <td>${stu.jee_a}</td>
+                    <td>${stu.eap}</td>
+                    <td>${stu.pt}</td>
+                    <td><b>${stu.tot}</b></td>
+                    <td class="pct">${stu.pct}%</td>
+                    <td>${percentile}%</td>
+                    <td>${lost}</td>
+                    <td><span class="${stu.sec==='SUPER40'?'present':'absent'}">${stu.sec}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
 
-        // percent relative to computed maxTotal (avoid divide by zero)
-        const pct = maxTotal > 0 ? (tot / maxTotal * 100) : 0;
+            // stats
+            const avgPct = filtered.length > 0
+                ? (filtered.reduce((a,b)=>a+parseFloat(b.pct),0)/filtered.length).toFixed(2)
+                : "0.00";
 
-        const name = studentNames[admn] || "N/A";
-        const secVal = sec[admn] || "N/A";
+            document.getElementById("stats").innerHTML = `
+                <div class="stat"><div class="stat-val">${filtered.length}</div><div class="stat-lbl">Total Students (Filtered)</div></div>
+                <div class="stat"><div class="stat-val">${avgPct}%</div><div class="stat-lbl">Avg % (Filtered)</div></div>
+                <div class="stat"><div class="stat-val">${filtered[0]?.name || 'N/A'}</div><div class="stat-lbl">Topper (by %)</div></div>
+            `;
+        }
 
-        s.push({
-            a: admn,
-            name: name,
-            inmt: inmtTotal,
-            jee_m: jeeM,
-            jee_a: jeeA,
-            eap: eap,
-            pt: ptTotal,
-            tot: tot,
-            pct: pct.toFixed(2),
-            sec: secVal,
-            // attach maxTotal so render/export can use the same denominator
-            __maxTotal: maxTotal
-        });
-    });
+        function sort_apply() {
+            const mode = document.getElementById("sort").value;
+            if (mode === "total") s.sort((a,b)=>b.tot - a.tot);
+            else if (mode === "admn") s.sort((a,b)=>parseInt(a.a)-parseInt(b.a));
+            else s.sort((a,b)=>parseFloat(b.pct)-parseFloat(a.pct));
+            render();
+        }
 
-    // default sort by pct desc
-    s.sort((x,y) => parseFloat(y.pct) - parseFloat(x.pct));
-    render();
-}
-    render();
-}
-function render(){
-    const q = document.getElementById("search").value.toLowerCase();
-    const filtered = s.filter(item => String(item.a).toLowerCase().includes(q) || String(item.name).toLowerCase().includes(q));
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
+        function export_csv() {
+            const header = "Rank,Admn,Name,INMT,JEE_MAIN,JEE_ADV,EAPCET,PT,Total,%,Percentile,Lost,Section\n";
+            let csv = header;
+            s.forEach((t,n)=>{
+                const percentile = s.length>1 ? ((s.length-1-n)/(s.length-1)*100).toFixed(2) : "0.00";
+                const lost = (Number(t.__maxTotal || 0) - t.tot).toFixed(2);
+                csv += `${n+1},${t.a},"${t.name}",${t.inmt},${t.jee_m},${t.jee_a},${t.eap},${t.pt},${t.tot},${t.pct},${percentile},${lost},${t.sec}\n`;
+            });
+            const blob = new Blob([csv],{type:"text/csv"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = "marksheet.csv"; a.click();
+            URL.revokeObjectURL(url);
+        }
 
-    // use global maxTotal if present, fallback to compute from first student
-    const globalMax = filtered[0] ? Number(filtered[0].__maxTotal || 0) : 0;
-
-    filtered.forEach((stu, idx) => {
-        let percentile = "0.00";
-        if (filtered.length > 1) percentile = ((filtered.length - 1 - idx) / (filtered.length - 1) * 100).toFixed(2);
-
-        let tr = document.createElement("tr");
-        if (idx < 3 && stu.tot > 0) tr.classList.add(`rank-${idx+1}`);
-
-        const lost = globalMax > 0 ? (globalMax - stu.tot) : 0;
-
-        tr.innerHTML = `<td>${idx+1}</td>
-                        <td>${stu.a}</td>
-                        <td>${stu.name}</td>
-                        <td>${stu.inmt}</td>
-                        <td>${stu.jee_m}</td>
-                        <td>${stu.jee_a}</td>
-                        <td>${stu.eap}</td>
-                        <td>${stu.pt}</td>
-                        <td><b>${stu.tot}</b></td>
-                        <td class="pct">${stu.pct}%</td>
-                        <td>${percentile}%</td>
-                        <td>${lost}</td>
-                        <td><span class="${stu.sec === 'SUPER40' ? 'present' : 'absent'}">${stu.sec}</span></td>`;
-        tbody.appendChild(tr);
-    });
-
-    // stats
-    const totalFiltered = filtered.length;
-    let avgPct = "0.00";
-    if (totalFiltered > 0) {
-        avgPct = (filtered.reduce((acc, it) => acc + parseFloat(it.pct), 0) / totalFiltered).toFixed(2);
-    }
-    document.getElementById("stats").innerHTML = `
-        <div class="stat"><div class="stat-val">${totalFiltered}</div><div class="stat-lbl">Total Students (Filtered)</div></div>
-        <div class="stat"><div class="stat-val">${avgPct}%</div><div class="stat-lbl">Avg % (Filtered)</div></div>
-        <div class="stat"><div class="stat-val">${filtered[0]?.name || 'N/A'}</div><div class="stat-lbl">Topper (by %)</div></div>
-    `;
-}
-function sort_apply(){
-    // read the select by the new id to avoid name collisions with global "sort"
-    let modeEl = document.getElementById("sortMode");
-    let mode = modeEl ? modeEl.value : "pct";
-
-    if (mode === "total") {
-        s.sort((a,b)=> b.tot - a.tot);
-    } else if (mode === "admn") {
-        s.sort((a,b)=> parseInt(a.a) - parseInt(b.a));
-    } else { // pct
-        s.sort((a,b)=> parseFloat(b.pct) - parseFloat(a.pct));
-    }
-    render();
-}
-}
-function export_csv(){
-    const header = "Rank,Admn,Name,INMT,JEE_MAIN,JEE_ADV,EAPCET,PT,Total,%,Percentile,Lost,Section\n";
-    let csv = header;
-    s.forEach((t, n) => {
-        let percentile = "0.00";
-        if (s.length > 1) percentile = ((s.length - 1 - n) / (s.length - 1) * 100).toFixed(2);
-        const maxTotal = Number(t.__maxTotal || 0);
-        const lost = maxTotal > 0 ? (maxTotal - t.tot) : 0;
-        // quote name to preserve commas
-        csv += `${n+1},${t.a},"${t.name}",${t.inmt},${t.jee_m},${t.jee_a},${t.eap},${t.pt},${t.tot},${t.pct},${percentile},${lost},${t.sec}\n`;
-    });
-    const blob = new Blob([csv], {type: "text/csv"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "marksheet.csv"; a.click();
-    URL.revokeObjectURL(url);
-}
-window.onload=calc;
+        window.onload = calc;
     </script>
 </body>
 </html>
